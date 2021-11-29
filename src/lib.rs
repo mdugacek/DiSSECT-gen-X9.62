@@ -157,19 +157,64 @@ mod tests {
     use crate::BigUint;
     use num_traits::Num;
 
-    #[test]
-    fn random_curve_over_192b_prime_field() { // ANSI X9.62 L.6.2.3
+    fn test_random_curve_over_prime_field(seed: &str, field: &str, a: &str, expected_b: &str) {
         let base2 = BigUint::from(2u8);
 
-        let seed = BigUint::from_str_radix("3045AE6FC8422F64ED579528D38120EAE12196D5", 16).expect("");
-        let field = BigUint::from_str_radix("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF", 16).expect("");
-        let given_a = BigUint::from_str_radix("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFC", 16).expect("");
-        let expected_b = BigUint::from_str_radix("64210519E59C80E70FA7E9AB72243049FEB8DEECC146B9B1", 16).expect("");
+        let seed = BigUint::from_str_radix(seed, 16).expect("seed");
+        let field = BigUint::from_str_radix(field, 16).expect("field");
+        let given_a = BigUint::from_str_radix(a, 16).expect("a");
+        let expected_b = BigUint::from_str_radix(expected_b, 16).expect("given b");
         let expected_b2 = expected_b.modpow(&base2, &field);
 
         let ec = EllipticCurve::generate_with_a(seed, field.clone(), given_a.clone()).expect("No EC returned!");
         assert_eq!(ec.q, field);
         assert_eq!(ec.a, given_a);
         assert_eq!(ec.b, expected_b2);
+    }
+
+
+    #[test]
+    fn random_curve_over_192b_prime_field() { // ANSI X9.62 L.6.2.3
+        let seed = "3045AE6FC8422F64ED579528D38120EAE12196D5";
+        let field = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF";
+        let given_a = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFC";
+        let expected_b = "64210519E59C80E70FA7E9AB72243049FEB8DEECC146B9B1";
+        test_random_curve_over_prime_field(seed, field, given_a, expected_b);
+    }
+
+    #[test]
+    fn random_curve_over_224b_prime_field() { // ANSI X9.62 L.6.3.3
+        let seed = "BD71344799D5C7FCDC45B59FA3B9AB8F6A948BC5";
+        let field = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000001";
+        let given_a = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFE";
+        let expected_b = "B4050A850C04B3ABF54132565044B0B7D7BFD8BA270B39432355FFB4";
+        test_random_curve_over_prime_field(seed, field, given_a, expected_b);
+    }
+
+    #[test]
+    fn random_curve_over_256b_prime_field() { // ANSI X9.62 L.6.4.3
+        let seed = "C49D360886E704936A6678E1139D26B7819F7E90";
+        let field = "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF";
+        let given_a = "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC";
+        let expected_b = "5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B";
+        test_random_curve_over_prime_field(seed, field, given_a, expected_b);
+    }
+
+    #[test]
+    fn random_curve_over_384b_prime_field() { // ANSI X9.62 L.6.5.3
+        let seed = "A335926AA319A27A1D00896A6773A4827ACDAC73";
+        let field = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF";
+        let given_a = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFC";
+        let expected_b = "B3312FA7E23EE7E4988E056BE3F82D19181D9C6EFE8141120314088F5013875AC656398D8A2ED19D2A85C8EDD3EC2AEF";
+        test_random_curve_over_prime_field(seed, field, given_a, expected_b);
+    }
+
+    #[test]
+    fn random_curve_over_521b_prime_field() { // ANSI X9.62 L.6.6.3
+        let seed = "D09E8800291CB85396CC6717393284AAA0DA64BA";
+        let field = "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
+        let given_a = "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC";
+        let expected_b = "0051953EB9618E1C9A1F929A21A0B68540EEA2DA725B99B315F3B8B489918EF109E156193951EC7E937B1652C0BD3BB1BF073573DF883D2C34F1EF451FD46B503F00";
+        test_random_curve_over_prime_field(seed, field, given_a, expected_b);
     }
 }
