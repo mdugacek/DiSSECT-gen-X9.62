@@ -30,10 +30,10 @@ impl EllipticCurve {
         let m = q.bits();
         let g = seed.bits() as u32;
         let s = ((m as f64 - 1.0) / t as f64).floor() as u64;
-        if s == 0 {
+        if s == 0 || t == 0 {
             return Err(EllipticCurveError);
         }
-        let k = EllipticCurve::compute_k(&q, m, s * t)?;
+        let k = m - s * t - 1;
 
         let mut hash = sha1::Sha1::new();
         hash.update(seed.to_bytes_be());
@@ -61,34 +61,15 @@ impl EllipticCurve {
             c += c_j;
         }
 
-        if q.is_even() {
-            if c.is_zero() {
-                return Err(EllipticCurveError);
-            }
-            return Ok(EllipticCurve{ q, a, b: c});
-        } else {
-            let exp = BigUint::from(3usize);
-            let a3 = a.modpow(&exp, &q);
-            let b2 = EllipticCurve::div_n(&a3, &c, &q);
+        let exp = BigUint::from(3usize);
+        let a3 = a.modpow(&exp, &q);
+        let b2 = EllipticCurve::div_n(&a3, &c, &q);
 
-            if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
-                return Err(EllipticCurveError);
-            }
-            // let b = EllipticCurve::sqrt_n(&b2, &q);
-            // println!("b: {}", b);
-            return Ok(EllipticCurve{ q, a, b: b2});
-        }
-    }
-
-    fn compute_k(q: &BigUint, m:u64, st: u64) -> Result<u64, EllipticCurveError> {
-        if st == 0 {
+        if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
             return Err(EllipticCurveError);
         }
-        if q.is_even() {
-            return Ok((m - st) as u64);
-        } else {
-            return Ok((m - st - 1) as u64);
-        }
+        // let b = EllipticCurve::sqrt_n(&b2, &q);
+        return Ok(EllipticCurve{ q, a, b: b2});
     }
 
     fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> BigUint { // ToDo: change to Result
