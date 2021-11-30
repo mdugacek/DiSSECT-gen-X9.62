@@ -63,7 +63,7 @@ impl EllipticCurve {
 
         let exp = BigUint::from(3usize);
         let a3 = a.modpow(&exp, &q);
-        let b2 = EllipticCurve::div_n(&a3, &c, &q);
+        let b2 = EllipticCurve::div_n(&a3, &c, &q)?;
 
         if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
             return Err(EllipticCurveError);
@@ -72,20 +72,20 @@ impl EllipticCurve {
         return Ok(EllipticCurve{ q, a, b: b2});
     }
 
-    fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> BigUint { // ToDo: change to Result
+    fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
         let a = a % n;
-        let inv = EllipticCurve::mod_inverse(b, n);
-        return (inv * a) % n;
+        let inv = EllipticCurve::mod_inverse(b, n)?;
+        return Ok((inv * a) % n);
     }
 
-    fn mod_inverse(num: &BigUint, n: &BigUint) -> BigUint { // ToDo: change to Result
+    fn mod_inverse(num: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
         let one = BigUint::one();
 
         let g = num.gcd(n);
         if g != one {
-            return one; // ToDO: return Err
+            return Err(EllipticCurveError);
         } else {
-            return num.modpow( &(n - 2u8), n);
+            return Ok(num.modpow( &(n - 2u8), n));
         }
     }
 
