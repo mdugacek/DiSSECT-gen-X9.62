@@ -1,32 +1,46 @@
-use sha1::Digest;
+use sha1::Sha1;
 use num_bigint::{BigUint};
 use num_traits::identities::Zero;
 use num_integer::Integer;
 use rand::prng::chacha::ChaChaRng;
 use rand::{FromEntropy, RngCore};
 use Vec;
+use digest::Digest;
 use num_traits::One;
+use std::marker::PhantomData;
+use sha2::{Sha224, Sha256, Sha384, Sha512};
+
+pub trait X962SupportedHashAlgorithm {}
+impl X962SupportedHashAlgorithm for Sha1 {}
+impl X962SupportedHashAlgorithm for Sha224 {}
+impl X962SupportedHashAlgorithm for Sha256 {}
+impl X962SupportedHashAlgorithm for Sha384 {}
+impl X962SupportedHashAlgorithm for Sha512 {}
+
+pub trait X962HashAlgorithm : X962SupportedHashAlgorithm + Digest {}
+impl<T: X962SupportedHashAlgorithm + Digest> X962HashAlgorithm for T {}
 
 
 #[derive(Debug, Clone)]
 pub struct EllipticCurveError;
 
-pub struct EllipticCurve {
+pub struct EllipticCurve<D: X962HashAlgorithm + Digest> {
     pub q: BigUint,
     pub a: BigUint,
     pub b: BigUint,
+    phantom: PhantomData<D>,
 }
 
-impl EllipticCurve {
-    pub fn generate(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
-        let a = EllipticCurve::generate_number(q.bits());
-        return EllipticCurve::generate_with_a(seed, q, a);
+impl<D: X962HashAlgorithm + Digest> EllipticCurve<D> {
+    pub fn generate(seed: BigUint, q: BigUint) -> Result<EllipticCurve<D>, EllipticCurveError> {
+        let a = EllipticCurve::<D>::generate_number(q.bits());
+        return EllipticCurve::<D>::generate_with_a(seed, q, a);
     }
 
-    pub fn generate_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve<D>, EllipticCurveError> {
         let base2 = BigUint::from(2u8);
 
-        let t = 160;
+        let t = (D::output_size() * 8) as u64;
         let m = q.bits();
         let g = seed.bits() as u32;
         let s = ((m as f64 - 1.0) / t as f64).floor() as u64;
@@ -35,7 +49,7 @@ impl EllipticCurve {
         }
         let k = m - s * t - 1;
 
-        let mut hash = sha1::Sha1::new();
+        let mut hash = D::new();
         hash.update(seed.to_bytes_be());
         let h = hash.finalize();
         let h = h.as_slice();
@@ -52,7 +66,7 @@ impl EllipticCurve {
             let new_seed = seed.clone();
             let new_seed = new_seed % base2.pow(g);
 
-            let mut hash = sha1::Sha1::new();
+            let mut hash = D::new();
             hash.update(new_seed.to_bytes_be());
             let c_j = hash.finalize();
 
@@ -63,18 +77,18 @@ impl EllipticCurve {
 
         let exp = BigUint::from(3usize);
         let a3 = a.modpow(&exp, &q);
-        let b2 = EllipticCurve::div_n(&a3, &c, &q)?;
+        let b2 = EllipticCurve::<D>::div_n(&a3, &c, &q)?;
 
         if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
             return Err(EllipticCurveError);
         }
         // let b = EllipticCurve::sqrt_n(&b2, &q);
-        return Ok(EllipticCurve{ q, a, b: b2});
+        return Ok(EllipticCurve{ q, a, b: b2, phantom: PhantomData::<D>::default()});
     }
 
     fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
         let a = a % n;
-        let inv = EllipticCurve::mod_inverse(b, n)?;
+        let inv = EllipticCurve::<D>::mod_inverse(b, n)?;
         return Ok((inv * a) % n);
     }
 
@@ -126,13 +140,13 @@ impl EllipticCurve {
 }
 
 
-pub struct ECDomainParameters {
+pub struct ECDomainParameters<D: X962HashAlgorithm> {
     seed: BigUint,
-    ec: EllipticCurve
+    ec: EllipticCurve<D>
 }
 
-impl ECDomainParameters {
-    pub fn generate_with_seed_q(seed: BigUint, q: BigUint) -> Result<ECDomainParameters, EllipticCurveError> {
+impl<D: X962HashAlgorithm> ECDomainParameters<D> {
+    pub fn generate_with_seed_q(seed: BigUint, q: BigUint) -> Result<ECDomainParameters<D>, EllipticCurveError> {
         let ec = EllipticCurve::generate(seed.clone(), q.clone())?;
         // e
         // f
@@ -156,6 +170,7 @@ mod tests {
     use crate::EllipticCurve;
     use crate::BigUint;
     use num_traits::Num;
+    use sha1::Sha1;
 
     fn test_random_curve_over_prime_field(seed: &str, field: &str, a: &str, expected_b: &str) {
         let base2 = BigUint::from(2u8);
@@ -166,7 +181,7 @@ mod tests {
         let expected_b = BigUint::from_str_radix(expected_b, 16).expect("given b");
         let expected_b2 = expected_b.modpow(&base2, &field);
 
-        let ec = EllipticCurve::generate_with_a(seed, field.clone(), given_a.clone()).expect("No EC returned!");
+        let ec = EllipticCurve::<Sha1>::generate_with_a(seed, field.clone(), given_a.clone()).expect("No EC returned!");
         assert_eq!(ec.q, field);
         assert_eq!(ec.a, given_a);
         assert_eq!(ec.b, expected_b2);
