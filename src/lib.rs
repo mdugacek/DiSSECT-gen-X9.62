@@ -24,20 +24,39 @@ impl<T: X962SupportedHashAlgorithm + Digest> X962HashAlgorithm for T {}
 #[derive(Debug, Clone)]
 pub struct EllipticCurveError;
 
-pub struct EllipticCurve<D: X962HashAlgorithm + Digest> {
+pub struct EllipticCurve {
     pub q: BigUint,
     pub a: BigUint,
     pub b: BigUint,
-    phantom: PhantomData<D>,
 }
 
-impl<D: X962HashAlgorithm + Digest> EllipticCurve<D> {
-    pub fn generate(seed: BigUint, q: BigUint) -> Result<EllipticCurve<D>, EllipticCurveError> {
-        let a = EllipticCurve::<D>::generate_number(q.bits());
-        return EllipticCurve::<D>::generate_with_a(seed, q, a);
+impl EllipticCurve {
+    pub fn generate_sha1(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate::<Sha1>(seed, q)
     }
 
-    pub fn generate_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve<D>, EllipticCurveError> {
+    pub fn generate_sha224(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate::<Sha256>(seed, q)
+    }
+
+    pub fn generate_sha256(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate::<Sha224>(seed, q)
+    }
+
+    pub fn generate_sha384(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate::<Sha384>(seed, q)
+    }
+
+    pub fn generate_sha512(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate::<Sha512>(seed, q)
+    }
+
+    pub fn generate<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        let a = EllipticCurve::generate_number(q.bits());
+        return EllipticCurve::generate_with_a::<D>(seed, q, a);
+    }
+
+    pub fn generate_with_a<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         let base2 = BigUint::from(2u8);
 
         let t = (D::output_size() * 8) as u64;
@@ -77,18 +96,18 @@ impl<D: X962HashAlgorithm + Digest> EllipticCurve<D> {
 
         let exp = BigUint::from(3usize);
         let a3 = a.modpow(&exp, &q);
-        let b2 = EllipticCurve::<D>::div_n(&a3, &c, &q)?;
+        let b2 = EllipticCurve::div_n(&a3, &c, &q)?;
 
         if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
             return Err(EllipticCurveError);
         }
         // let b = EllipticCurve::sqrt_n(&b2, &q);
-        return Ok(EllipticCurve{ q, a, b: b2, phantom: PhantomData::<D>::default()});
+        return Ok(EllipticCurve{ q, a, b: b2});
     }
 
     fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
         let a = a % n;
-        let inv = EllipticCurve::<D>::mod_inverse(b, n)?;
+        let inv = EllipticCurve::mod_inverse(b, n)?;
         return Ok((inv * a) % n);
     }
 
@@ -140,14 +159,14 @@ impl<D: X962HashAlgorithm + Digest> EllipticCurve<D> {
 }
 
 
-pub struct ECDomainParameters<D: X962HashAlgorithm> {
+pub struct ECDomainParameters {
     seed: BigUint,
-    ec: EllipticCurve<D>
+    ec: EllipticCurve
 }
 
-impl<D: X962HashAlgorithm> ECDomainParameters<D> {
-    pub fn generate_with_seed_q(seed: BigUint, q: BigUint) -> Result<ECDomainParameters<D>, EllipticCurveError> {
-        let ec = EllipticCurve::generate(seed.clone(), q.clone())?;
+impl ECDomainParameters {
+    pub fn generate_with_seed_q<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint) -> Result<ECDomainParameters, EllipticCurveError> {
+        let ec = EllipticCurve::generate::<D>(seed.clone(), q.clone())?;
         // e
         // f
         // g
@@ -181,7 +200,7 @@ mod tests {
         let expected_b = BigUint::from_str_radix(expected_b, 16).expect("given b");
         let expected_b2 = expected_b.modpow(&base2, &field);
 
-        let ec = EllipticCurve::<Sha1>::generate_with_a(seed, field.clone(), given_a.clone()).expect("No EC returned!");
+        let ec = EllipticCurve::generate_with_a::<Sha1>(seed, field.clone(), given_a.clone()).expect("No EC returned!");
         assert_eq!(ec.q, field);
         assert_eq!(ec.a, given_a);
         assert_eq!(ec.b, expected_b2);
