@@ -12,3 +12,5 @@ Cargo.lock
 # MacOS related files
 .DS_Store
 
+# JetBrains related files
+.idea/
