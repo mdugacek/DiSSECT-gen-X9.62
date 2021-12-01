@@ -7,7 +7,6 @@ use rand::{FromEntropy, RngCore};
 use Vec;
 use digest::Digest;
 use num_traits::One;
-use std::marker::PhantomData;
 use sha2::{Sha224, Sha256, Sha384, Sha512};
 
 pub trait X962SupportedHashAlgorithm {}
@@ -35,28 +34,48 @@ impl EllipticCurve {
         EllipticCurve::generate::<Sha1>(seed, q)
     }
 
+    pub fn generate_sha1_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate_with_a::<Sha1>(seed, q, a)
+    }
+
     pub fn generate_sha224(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate::<Sha256>(seed, q)
+    }
+
+    pub fn generate_224_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate_with_a::<Sha224>(seed, q, a)
     }
 
     pub fn generate_sha256(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate::<Sha224>(seed, q)
     }
 
+    pub fn generate_sha256_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate_with_a::<Sha256>(seed, q, a)
+    }
+
     pub fn generate_sha384(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate::<Sha384>(seed, q)
+    }
+
+    pub fn generate_sha384_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate_with_a::<Sha384>(seed, q, a)
     }
 
     pub fn generate_sha512(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate::<Sha512>(seed, q)
     }
 
-    pub fn generate<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_sha512_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+        EllipticCurve::generate_with_a::<Sha512>(seed, q, a)
+    }
+
+    pub fn generate<D: X962HashAlgorithm>(seed: BigUint, q: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         let a = EllipticCurve::generate_number(q.bits());
         return EllipticCurve::generate_with_a::<D>(seed, q, a);
     }
 
-    pub fn generate_with_a<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_with_a<D: X962HashAlgorithm>(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         let base2 = BigUint::from(2u8);
 
         let t = (D::output_size() * 8) as u64;
