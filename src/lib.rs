@@ -1,13 +1,15 @@
 use sha1::Sha1;
-use num_bigint::{BigUint};
+use num_bigint::{BigUint, RandBigInt};
 use num_traits::identities::Zero;
 use num_integer::Integer;
-use rand::prng::chacha::ChaChaRng;
-use rand::{FromEntropy, RngCore};
+
+use rand::{RngCore};
 use Vec;
 use digest::Digest;
 use num_traits::One;
 use sha2::{Sha224, Sha256, Sha384, Sha512};
+extern crate rand;
+use rand::SeedableRng;
 
 pub trait X962SupportedHashAlgorithm {}
 impl X962SupportedHashAlgorithm for Sha1 {}
@@ -157,7 +159,7 @@ impl EllipticCurve {
 
     fn generate_number(bit_count: u64) -> BigUint {
         let mut number= Vec::new();
-        let mut prng = ChaChaRng::from_entropy();
+        let mut prng = rand::rngs::StdRng::from_entropy();
 
         let u32_size = 32 as u64;
         let u32_count =  bit_count / u32_size;
@@ -183,6 +185,13 @@ pub struct ECDomainParameters {
     ec: EllipticCurve
 }
 
+
+struct NearlyPrimeInfo {
+    h: BigUint,
+    n: BigUint
+}
+
+
 impl ECDomainParameters {
     pub fn generate_with_seed_q<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint) -> Result<ECDomainParameters, EllipticCurveError> {
         let ec = EllipticCurve::generate::<D>(seed.clone(), q.clone())?;
@@ -193,8 +202,61 @@ impl ECDomainParameters {
         return Ok(ECDomainParameters{seed, ec});
     }
 
-    fn check_if_nearly_prime() {
+    fn check_if_nearly_prime(u: BigUint, l_max: BigUint, r_min: BigUint) -> Result<NearlyPrimeInfo, EllipticCurveError>{
+        let mut n = u;
+        let mut h = BigUint::one();
+        let mut l = BigUint::from(2u8);
+        while l != l_max {
+            let l_bu = l.clone(); // ToDo: fix
+            while l_bu.clone() % n.clone() == BigUint::zero() {
+                n = n / &l;
+                h = h * &l;
+                if n < r_min {
+                    return Err(EllipticCurveError);
+                }
+            }
+            l += 1u8;
+        }
+        //if ECDomainParameters::probabilistic_primality_test(n.clone(),) {
+        //    return Ok(NearlyPrimeInfo{h, n});
+        //}
+        return Err(EllipticCurveError);
+    }
 
+    fn probabilistic_primality_test(n: BigUint, t: BigUint) -> bool {
+        let two = BigUint::from(2u8);
+
+        let v = BigUint::zero();
+        let w = BigUint::zero();
+        // ToDo: implement point a) on page 11, algorithm A.1.1
+
+        let j = BigUint::one();
+        while j != t {
+            let mut rng = rand::thread_rng();
+            // let a = rng.gen_biguint_range(&BigUint::from(2u8), (&n - 1)); ToDo: fix compiler error
+            let a = BigUint::one();
+            let b = a.modpow(&w, &n);
+            if b == BigUint::one() || b == (&n - 1usize) {
+                continue;
+            }
+
+            let i = BigUint::one();
+            let mut fail = true;
+            while i != (&v - 1usize) {
+                let b = b.modpow(&two, &n);
+                if b == &n - 1usize {
+                    fail = false;
+                    break;
+                }
+                if b == BigUint::one() {
+                    return false;
+                }
+            }
+            if fail {
+                return false;
+            }
+        }
+        return true;
     }
 
     fn generate_base_point() {
