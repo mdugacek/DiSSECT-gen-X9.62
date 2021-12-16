@@ -9,13 +9,13 @@ void c_sqrtfp(const char* n_str, const char* p_str, char* out_str) {
     GEN p = gp_read_str(p_str);
 
     GEN res = Fp_sqrt(n, p);
-    if (res == NULL)
+    if (res == NULL) {
+        pari_close();
         return;
+    }
 
     char* out = GENtostr(res);
     strcpy(out_str, out);
-    free(out);
-
     pari_close();
 }
 
