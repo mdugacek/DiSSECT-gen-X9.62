@@ -413,8 +413,8 @@ fn main() {
                 println!("{},{},{},{},{}", seed_str, ec.order(), ec.a, ec.b, ec.q);
                 break
             }
+            seed = seed.add(1u8);
         }
-        seed = seed.add(1u8);
     }
     println!("{}", now.elapsed().as_secs());
 }
