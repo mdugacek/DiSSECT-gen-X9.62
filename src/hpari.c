@@ -16,6 +16,7 @@ void c_sqrtfp(const char* n_str, const char* p_str, char* out_str) {
 
     char* out = GENtostr(res);
     strcpy(out_str, out);
+    free(out);
     pari_close();
 }
 

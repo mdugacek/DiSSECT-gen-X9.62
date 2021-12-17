@@ -366,7 +366,6 @@ fn generate_ec(seed: &str, q: &str, hash_algorithm: &str, a: Option<&str>) -> Re
 
     if a.is_some() {
         let a = BigUint::from_str_radix(a.unwrap(), 16).expect("incorrect format of given a");
-        println!("a: {}", a);
         match hash_algorithm {
             "sha1" => EllipticCurve::generate_sha1_with_a(seed, q, a),
             "sha224" => EllipticCurve::generate_sha224_with_a(seed, q, a),
@@ -407,13 +406,13 @@ fn main() {
     for i in 0..10000 {
         loop {
             let seed_str = seed.to_str_radix(16);
+            seed = seed.add(1u8);
             let ec = generate_ec(&seed_str, field_size, hash_algorithm, a);
             if !ec.is_err() {
                 let ec = ec.unwrap();
                 println!("{},{},{},{},{}", seed_str, ec.order(), ec.a, ec.b, ec.q);
                 break
             }
-            seed = seed.add(1u8);
         }
     }
     println!("{}", now.elapsed().as_secs());
