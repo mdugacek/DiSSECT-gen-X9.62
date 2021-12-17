@@ -4,7 +4,7 @@
 
 
 void c_sqrtfp(const char* n_str, const char* p_str, char* out_str) {
-    pari_init(1000000, 0);
+    pari_init(100000000, 0);
     GEN n = gp_read_str(n_str);
     GEN p = gp_read_str(p_str);
 
@@ -20,7 +20,7 @@ void c_sqrtfp(const char* n_str, const char* p_str, char* out_str) {
 }
 
 void c_points(const char* a_str, const char* b_str, const char* p_str, char* out_str) {
-    pari_init(1000000, 0);
+    pari_init(100000000, 0);
     GEN a = gp_read_str(a_str);
     GEN b = gp_read_str(b_str);
     GEN p = gp_read_str(p_str);
