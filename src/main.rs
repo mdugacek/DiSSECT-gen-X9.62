@@ -12,7 +12,7 @@ extern "C" {
 }
 
 pub fn sqrtfp(n: &str, p: &str) -> String {
-    let mut buffer: [c_char; 1024] = [0u8; 1024];
+    let mut buffer: [c_char; 1024] = [0i8; 1024];
     unsafe {
         let n = CString::new(n).unwrap();
         let p = CString::new(p).unwrap();
@@ -24,7 +24,7 @@ pub fn sqrtfp(n: &str, p: &str) -> String {
 }
 
 pub fn points(a: &str, b: &str, p: &str) -> String {
-    let mut buffer: [c_char; 1024] = [0u8; 1024];
+    let mut buffer: [c_char; 1024] = [0i8; 1024];
     unsafe {
         let a = CString::new(a).unwrap();
         let b = CString::new(b).unwrap();
@@ -49,6 +49,8 @@ extern crate rand;
 extern crate num_bigint;
 extern crate clap;
 use clap::{Arg, App};
+use std::time::Instant;
+use std::ops::Add;
 
 pub trait X962SupportedHashAlgorithm {}
 impl X962SupportedHashAlgorithm for Sha1 {}
@@ -161,8 +163,8 @@ impl EllipticCurve {
         if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
             return Err(EllipticCurveError);
         }
-        let b = EllipticCurve::sqrt_n(&b2, &q);
-        return Ok(EllipticCurve{ q, a, b});
+        let b = EllipticCurve::sqrt_n(&b2, &q)?;
+        return Ok(EllipticCurve{q, a, b});
     }
 
     fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
@@ -182,11 +184,14 @@ impl EllipticCurve {
         }
     }
 
-    fn sqrt_n(num: &BigUint, n: &BigUint) -> BigUint{
+    fn sqrt_n(num: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
         let num_str = num.to_str_radix(10);
         let n_str = n.to_str_radix(10);
         let res = sqrtfp(num_str.as_str(), n_str.as_str());
-        return BigUint::from_str_radix(res.as_str(), 10).expect("");
+        if res.is_empty() {
+            return Err(EllipticCurveError);
+        }
+        return Ok(BigUint::from_str_radix(res.as_str(), 10).expect(""));
     }
 
     fn generate_number(bit_count: u64) -> BigUint {
@@ -391,21 +396,25 @@ fn main() {
         .get_matches();
 
     let seed = matches.value_of("seed").expect("");
-    println!("seed: {}", seed);
     let field_size = matches.value_of("field size").expect("");
-    println!("field_size: {}", field_size);
 
     let hash_algorithm = matches.value_of("hash algorithm").expect("");
     let a = matches.value_of("provided a");
 
-    let ec = generate_ec(seed, field_size, hash_algorithm, a);
-    if ec.is_err() {
-        println!("EC generation resulted in error.");
-    } else {
-        let ec = ec.unwrap();
-        println!("EC generated successfully:");
-        println!("a: {}", ec.a);
-        println!("b: {}", ec.b);
-        println!("order: {}", ec.order());
+    let mut seed = BigUint::from_str_radix(seed, 16).expect("seed");
+
+    let now = Instant::now();
+    for i in 0..10000 {
+        loop {
+            let seed_str = seed.to_str_radix(16);
+            let ec = generate_ec(&seed_str, field_size, hash_algorithm, a);
+            if !ec.is_err() {
+                let ec = ec.unwrap();
+                println!("{},{},{},{},{}", seed_str, ec.order(), ec.a, ec.b, ec.q);
+                break
+            }
+        }
+        seed = seed.add(1u8);
     }
+    println!("{}", now.elapsed().as_secs());
 }
