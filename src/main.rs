@@ -1,15 +1,54 @@
-use sha1::Sha1;
-use num_bigint::{BigUint, RandBigInt};
-use num_traits::identities::Zero;
-use num_integer::Integer;
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
 
-use rand::{RngCore};
-use Vec;
+extern "C" {
+    fn c_sqrtfp(n_str: *const c_char, p_str: *const c_char, out_str: *mut c_char);
+    fn c_points(
+        a_str: *const c_char,
+        b_str: *const c_char,
+        p_str: *const c_char,
+        out_str: *mut c_char,
+    );
+}
+
+pub fn sqrtfp(n: &str, p: &str) -> String {
+    let mut buffer: [c_char; 1024] = [0u8; 1024];
+    unsafe {
+        let n = CString::new(n).unwrap();
+        let p = CString::new(p).unwrap();
+        c_sqrtfp(n.as_ptr(), p.as_ptr(), buffer.as_mut_ptr());
+        CStr::from_ptr(buffer.as_ptr())
+            .to_string_lossy()
+            .into_owned()
+    }
+}
+
+pub fn points(a: &str, b: &str, p: &str) -> String {
+    let mut buffer: [c_char; 1024] = [0u8; 1024];
+    unsafe {
+        let a = CString::new(a).unwrap();
+        let b = CString::new(b).unwrap();
+        let p = CString::new(p).unwrap();
+        c_points(a.as_ptr(), b.as_ptr(), p.as_ptr(), buffer.as_mut_ptr());
+        CStr::from_ptr(buffer.as_ptr())
+            .to_string_lossy()
+            .into_owned()
+    }
+}
+
+
 use digest::Digest;
-use num_traits::One;
+use num_bigint::{BigUint, RandBigInt};
+use num_integer::Integer;
+use num_traits::identities::Zero;
+use num_traits::{One, Num};
+use sha1::Sha1;
 use sha2::{Sha224, Sha256, Sha384, Sha512};
+
 extern crate rand;
-use rand::SeedableRng;
+extern crate num_bigint;
+extern crate clap;
+use clap::{Arg, App};
 
 pub trait X962SupportedHashAlgorithm {}
 impl X962SupportedHashAlgorithm for Sha1 {}
@@ -44,7 +83,7 @@ impl EllipticCurve {
         EllipticCurve::generate::<Sha256>(seed, q)
     }
 
-    pub fn generate_224_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_sha224_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate_with_a::<Sha224>(seed, q, a)
     }
 
@@ -52,7 +91,7 @@ impl EllipticCurve {
         EllipticCurve::generate::<Sha224>(seed, q)
     }
 
-    pub fn generate_sha256_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_sha256_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate_with_a::<Sha256>(seed, q, a)
     }
 
@@ -60,7 +99,7 @@ impl EllipticCurve {
         EllipticCurve::generate::<Sha384>(seed, q)
     }
 
-    pub fn generate_sha384_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_sha384_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate_with_a::<Sha384>(seed, q, a)
     }
 
@@ -68,7 +107,7 @@ impl EllipticCurve {
         EllipticCurve::generate::<Sha512>(seed, q)
     }
 
-    pub fn generate_sha512_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
+    pub fn generate_sha512_with_a(seed: BigUint, q: BigUint, a: BigUint) -> Result<EllipticCurve, EllipticCurveError> {
         EllipticCurve::generate_with_a::<Sha512>(seed, q, a)
     }
 
@@ -122,8 +161,8 @@ impl EllipticCurve {
         if 4u8 * a3 + 27u8 * b2.clone() == BigUint::zero() {
             return Err(EllipticCurveError);
         }
-        // let b = EllipticCurve::sqrt_n(&b2, &q);
-        return Ok(EllipticCurve{ q, a, b: b2});
+        let b = EllipticCurve::sqrt_n(&b2, &q);
+        return Ok(EllipticCurve{ q, a, b});
     }
 
     fn div_n(a: &BigUint, b: &BigUint, n: &BigUint) -> Result<BigUint, EllipticCurveError> {
@@ -143,39 +182,24 @@ impl EllipticCurve {
         }
     }
 
-    fn sqrt_n(num: &BigUint, n: &BigUint) -> BigUint {
-        // Takes too long, 22 bit number takes 1s then each bit multiplies time by 2
-        let base2 = BigUint::from(2u8);
-
-        let mut ret = BigUint::zero();
-        while ret < *n {
-            if ret.modpow(&base2, &n) == *num {
-                return ret;
-            }
-            ret += 1u8;
-        }
-        return BigUint::zero();
+    fn sqrt_n(num: &BigUint, n: &BigUint) -> BigUint{
+        let num_str = num.to_str_radix(10);
+        let n_str = n.to_str_radix(10);
+        let res = sqrtfp(num_str.as_str(), n_str.as_str());
+        return BigUint::from_str_radix(res.as_str(), 10).expect("");
     }
 
     fn generate_number(bit_count: u64) -> BigUint {
-        let mut number= Vec::new();
-        let mut prng = rand::rngs::StdRng::from_entropy();
+        let mut rng = rand::thread_rng();
+        return rng.gen_biguint(bit_count);
+    }
 
-        let u32_size = 32 as u64;
-        let u32_count =  bit_count / u32_size;
-        for _ in 0..u32_count {
-            number.push(prng.next_u32());
-        }
-
-        let mut mask: u32 = 0b0;
-        for _ in  0..bit_count % u32_size {
-            mask = mask << 1 | 0b1;
-        }
-
-        let last_num = prng.next_u32();
-        number.push(last_num & mask);
-
-        return BigUint::new(number);
+    fn order(&self) -> BigUint {
+        let q_str = self.q.to_str_radix(10);
+        let a_str = self.a.to_str_radix(10);
+        let b_str = self.b.to_str_radix(10);
+        let ret = points(a_str.as_str(), b_str.as_str(), q_str.as_str());
+        return BigUint::from_str_radix(ret.as_str(), 10).expect("");
     }
 }
 
@@ -186,23 +210,17 @@ pub struct ECDomainParameters {
 }
 
 
-struct NearlyPrimeInfo {
-    h: BigUint,
-    n: BigUint
-}
-
-
 impl ECDomainParameters {
     pub fn generate_with_seed_q<D: X962HashAlgorithm + Digest>(seed: BigUint, q: BigUint) -> Result<ECDomainParameters, EllipticCurveError> {
         let ec = EllipticCurve::generate::<D>(seed.clone(), q.clone())?;
-        // e
+        // let u = ec.order();
         // f
         // g
         // h
         return Ok(ECDomainParameters{seed, ec});
     }
 
-    fn check_if_nearly_prime(u: BigUint, l_max: BigUint, r_min: BigUint) -> Result<NearlyPrimeInfo, EllipticCurveError>{
+    fn check_if_nearly_prime(u: BigUint, l_max: BigUint, r_min: BigUint) -> Result<(BigUint, BigUint), EllipticCurveError>{
         let mut n = u;
         let mut h = BigUint::one();
         let mut l = BigUint::from(2u8);
@@ -217,24 +235,25 @@ impl ECDomainParameters {
             }
             l += 1u8;
         }
-        //if ECDomainParameters::probabilistic_primality_test(n.clone(),) {
-        //    return Ok(NearlyPrimeInfo{h, n});
-        //}
+
+        if ECDomainParameters::probabilistic_primality_test(n.clone()) {
+            return Ok((h, n));
+        }
         return Err(EllipticCurveError);
     }
 
-    fn probabilistic_primality_test(n: BigUint, t: BigUint) -> bool {
+    fn probabilistic_primality_test(n: BigUint) -> bool {
         let two = BigUint::from(2u8);
 
         let v = BigUint::zero();
         let w = BigUint::zero();
+        let t = BigUint::from(50usize);
         // ToDo: implement point a) on page 11, algorithm A.1.1
 
         let j = BigUint::one();
         while j != t {
             let mut rng = rand::thread_rng();
-            // let a = rng.gen_biguint_range(&BigUint::from(2u8), (&n - 1)); ToDo: fix compiler error
-            let a = BigUint::one();
+            let a = rng.gen_biguint_range(&BigUint::from(2usize), &(&n - 1usize));
             let b = a.modpow(&w, &n);
             if b == BigUint::one() || b == (&n - 1usize) {
                 continue;
@@ -258,17 +277,13 @@ impl ECDomainParameters {
         }
         return true;
     }
-
-    fn generate_base_point() {
-
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::EllipticCurve;
     use crate::BigUint;
+    use crate::EllipticCurve;
     use num_traits::Num;
     use sha1::Sha1;
 
@@ -279,17 +294,19 @@ mod tests {
         let field = BigUint::from_str_radix(field, 16).expect("field");
         let given_a = BigUint::from_str_radix(a, 16).expect("a");
         let expected_b = BigUint::from_str_radix(expected_b, 16).expect("given b");
-        let expected_b2 = expected_b.modpow(&base2, &field);
 
-        let ec = EllipticCurve::generate_with_a::<Sha1>(seed, field.clone(), given_a.clone()).expect("No EC returned!");
+        let ec = EllipticCurve::generate_with_a::<Sha1>(seed, field.clone(), given_a.clone())
+            .expect("No EC returned!");
+        let second_b = &field - &ec.b;
+
         assert_eq!(ec.q, field);
         assert_eq!(ec.a, given_a);
-        assert_eq!(ec.b, expected_b2);
+        assert!(second_b == expected_b || ec.b == expected_b);
     }
 
-
     #[test]
-    fn random_curve_over_192b_prime_field() { // ANSI X9.62 L.6.2.3
+    fn random_curve_over_192b_prime_field() {
+        // ANSI X9.62 L.6.2.3
         let seed = "3045AE6FC8422F64ED579528D38120EAE12196D5";
         let field = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF";
         let given_a = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFC";
@@ -298,7 +315,8 @@ mod tests {
     }
 
     #[test]
-    fn random_curve_over_224b_prime_field() { // ANSI X9.62 L.6.3.3
+    fn random_curve_over_224b_prime_field() {
+        // ANSI X9.62 L.6.3.3
         let seed = "BD71344799D5C7FCDC45B59FA3B9AB8F6A948BC5";
         let field = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000001";
         let given_a = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFE";
@@ -307,7 +325,8 @@ mod tests {
     }
 
     #[test]
-    fn random_curve_over_256b_prime_field() { // ANSI X9.62 L.6.4.3
+    fn random_curve_over_256b_prime_field() {
+        // ANSI X9.62 L.6.4.3
         let seed = "C49D360886E704936A6678E1139D26B7819F7E90";
         let field = "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF";
         let given_a = "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC";
@@ -316,7 +335,8 @@ mod tests {
     }
 
     #[test]
-    fn random_curve_over_384b_prime_field() { // ANSI X9.62 L.6.5.3
+    fn random_curve_over_384b_prime_field() {
+        // ANSI X9.62 L.6.5.3
         let seed = "A335926AA319A27A1D00896A6773A4827ACDAC73";
         let field = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF";
         let given_a = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFC";
@@ -325,11 +345,67 @@ mod tests {
     }
 
     #[test]
-    fn random_curve_over_521b_prime_field() { // ANSI X9.62 L.6.6.3
+    fn random_curve_over_521b_prime_field() {
+        // ANSI X9.62 L.6.6.3
         let seed = "D09E8800291CB85396CC6717393284AAA0DA64BA";
         let field = "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
         let given_a = "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC";
         let expected_b = "0051953EB9618E1C9A1F929A21A0B68540EEA2DA725B99B315F3B8B489918EF109E156193951EC7E937B1652C0BD3BB1BF073573DF883D2C34F1EF451FD46B503F00";
         test_random_curve_over_prime_field(seed, field, given_a, expected_b);
+    }
+}
+
+fn generate_ec(seed: &str, q: &str, hash_algorithm: &str, a: Option<&str>) -> Result<EllipticCurve, EllipticCurveError> {
+    let seed = BigUint::from_str_radix(seed, 16).expect("incorrect format of given seed");
+    let q = BigUint::from_str_radix(q, 16).expect("incorrect format of given q");
+
+    if a.is_some() {
+        let a = BigUint::from_str_radix(a.unwrap(), 16).expect("incorrect format of given a");
+        println!("a: {}", a);
+        match hash_algorithm {
+            "sha1" => EllipticCurve::generate_sha1_with_a(seed, q, a),
+            "sha224" => EllipticCurve::generate_sha224_with_a(seed, q, a),
+            "sha256" => EllipticCurve::generate_sha256_with_a(seed, q, a),
+            "sha384" => EllipticCurve::generate_sha384_with_a(seed, q, a),
+            "sha512" => EllipticCurve::generate_sha512_with_a(seed, q, a),
+            _ => Err(EllipticCurveError)
+        }
+    } else {
+        match hash_algorithm {
+            "sha1" => EllipticCurve::generate_sha1(seed, q),
+            "sha224" => EllipticCurve::generate_sha224(seed, q),
+            "sha256" => EllipticCurve::generate_sha256(seed, q),
+            "sha384" => EllipticCurve::generate_sha384(seed, q),
+            "sha512" => EllipticCurve::generate_sha512(seed, q),
+            _ => Err(EllipticCurveError)
+        }
+    }
+}
+
+fn main() {
+    let matches = App::new("DiSSECT-gen-X9.62")
+        .arg(Arg::with_name("seed").short("-s").long("--seed").value_name("SEED").help("seed given as string of hexadecimal values").required(true).takes_value(true))
+        .arg(Arg::with_name("field size").short("-q").long("--field-size").value_name("FIELD_SIZE").help("field size given as string of hexadecimal values").required(true).takes_value(true))
+        .arg(Arg::with_name("hash algorithm").long("--hash-algorithm").default_value("sha1").takes_value(true))
+        .arg(Arg::with_name("provided a").short("-a").long("--with-a").help("a parameter of generated ec given as string of hexadecimal values").takes_value(true))
+        .get_matches();
+
+    let seed = matches.value_of("seed").expect("");
+    println!("seed: {}", seed);
+    let field_size = matches.value_of("field size").expect("");
+    println!("field_size: {}", field_size);
+
+    let hash_algorithm = matches.value_of("hash algorithm").expect("");
+    let a = matches.value_of("provided a");
+
+    let ec = generate_ec(seed, field_size, hash_algorithm, a);
+    if ec.is_err() {
+        println!("EC generation resulted in error.");
+    } else {
+        let ec = ec.unwrap();
+        println!("EC generated successfully:");
+        println!("a: {}", ec.a);
+        println!("b: {}", ec.b);
+        println!("order: {}", ec.order());
     }
 }
