@@ -9,6 +9,8 @@ extern "C" {
         p_str: *const c_char,
         out_str: *mut c_char,
     );
+    fn hpari_init();
+    fn hpari_close();
 }
 
 pub fn sqrtfp(n: &str, p: &str) -> String {
@@ -387,6 +389,7 @@ fn generate_ec(seed: &str, q: &str, hash_algorithm: &str, a: Option<&str>) -> Re
 }
 
 fn main() {
+    unsafe { hpari_init(); }
     let matches = App::new("DiSSECT-gen-X9.62")
         .arg(Arg::with_name("seed").short("-s").long("--seed").value_name("SEED").help("seed given as string of hexadecimal values").required(true).takes_value(true))
         .arg(Arg::with_name("field size").short("-q").long("--field-size").value_name("FIELD_SIZE").help("field size given as string of hexadecimal values").required(true).takes_value(true))
@@ -406,7 +409,7 @@ fn main() {
     for i in 0..10000 {
         loop {
             let seed_str = seed.to_str_radix(16);
-            seed = seed.add(1u8);
+            seed = seed + 1u8;
             let ec = generate_ec(&seed_str, field_size, hash_algorithm, a);
             if !ec.is_err() {
                 let ec = ec.unwrap();
@@ -416,4 +419,5 @@ fn main() {
         }
     }
     println!("{}", now.elapsed().as_secs());
+    unsafe { hpari_close(); }
 }
