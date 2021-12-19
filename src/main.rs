@@ -386,14 +386,12 @@ fn main() {
     let matches = App::new("DiSSECT-gen-X9.62")
         .arg(Arg::with_name("seed").short("-s").long("--seed").value_name("SEED").help("seed given as string of hexadecimal values").required(true).takes_value(true))
         .arg(Arg::with_name("field size").short("-q").long("--field-size").value_name("FIELD_SIZE").help("field size given as string of hexadecimal values").required(true).takes_value(true))
-        .arg(Arg::with_name("hash algorithm").long("--hash-algorithm").default_value("sha1").takes_value(true))
+        .arg(Arg::with_name("hash algorithm").long("--hash-algorithm").value_name("HASH_ALGORITHM").default_value("sha1").help("hash algorithm used during EC generation. Possible values: sha1, sha224, sha256, sha384, sha512").takes_value(true))
         .arg(Arg::with_name("provided a").short("-a").long("--with-a").help("a parameter of generated ec given as string of hexadecimal values").takes_value(true))
         .get_matches();
 
     let seed = matches.value_of("seed").expect("");
-    println!("seed: {}", seed);
     let field_size = matches.value_of("field size").expect("");
-    println!("field_size: {}", field_size);
 
     let hash_algorithm = matches.value_of("hash algorithm").expect("");
     let a = matches.value_of("provided a");
@@ -404,6 +402,7 @@ fn main() {
     } else {
         let ec = ec.unwrap();
         println!("EC generated successfully:");
+        println!("q: {}", ec.q);
         println!("a: {}", ec.a);
         println!("b: {}", ec.b);
         println!("order: {}", ec.order());
